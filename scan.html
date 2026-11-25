@@ -8,49 +8,68 @@
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
   #msg {
     position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: #777; font: 28px/1.6 sans-serif; text-align: center; padding: 24px;
+    color: #999; font: 28px/1.6 sans-serif; text-align: center; padding: 24px;
   }
-  /* iframe がフォーカスを奪うとスキャナーの入力が届かなくなるため、操作を無効にする */
   #frame { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: none; pointer-events: none; }
+  /* 見えない入力欄：常にフォーカスを保つ */
+  #sink { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; }
+  #debug { position: fixed; left: 8px; bottom: 6px; right: 8px; color: #444; font: 12px monospace; word-break: break-all; z-index: 9; }
 </style>
 </head>
 <body>
-<div id="msg">QRコードを読み取ってください<br><small>（最初に画面を1回クリックすると全画面になります）</small></div>
+<div id="msg">QRコードを読み取ってください<br><small>（最初に画面を1回クリックしてください）</small></div>
 <iframe id="frame" allow="autoplay; fullscreen"></iframe>
+<input id="sink" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus>
+<div id="debug"></div>
 
 <script>
-  const IDLE_MS = 300;          // 入力が止まってから確定するまでの時間（Enterが来なくても動く）
+  const IDLE_MS = 300;
   const frame = document.getElementById('frame');
   const msg = document.getElementById('msg');
-  let buf = '', timer = null;
+  const sink = document.getElementById('sink');
+  const debug = document.getElementById('debug');
+  let timer = null;
+
+  function show(t) { debug.textContent = t; }
 
   function commit() {
     clearTimeout(timer);
-    const text = buf.trim();
-    buf = '';
-    if (!/^https?:\/\//i.test(text)) return;   // URL 以外は無視
+    const text = sink.value.trim();
+    sink.value = '';
+    show('受信: ' + text);
+    if (!/^https?:\/\//i.test(text)) return;
     msg.style.display = 'none';
     frame.style.display = 'block';
     frame.src = text;
-    // iframe にフォーカスが移らないように、親ページへ戻す
-    frame.addEventListener('load', () => { frame.blur(); window.focus(); }, { once: true });
+    frame.addEventListener('load', () => { refocus(); }, { once: true });
   }
 
-  // 入力欄がなくても、ページ全体でキー入力を受け取る
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); return; }
-    if (e.key === 'Escape') { buf = ''; return; }
-    if (e.key.length === 1) {
-      buf += e.key;
-      clearTimeout(timer);
-      timer = setTimeout(commit, IDLE_MS);
-    }
+  function refocus() { frame.blur(); window.focus(); sink.focus({ preventScroll: true }); }
+
+  // 入力欄に文字が入るたびに、0.3秒の入力停止で確定
+  sink.addEventListener('input', () => {
+    show('入力中: ' + sink.value);
+    clearTimeout(timer);
+    timer = setTimeout(commit, IDLE_MS);
+  });
+  sink.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
   });
 
-  // クリックで全画面
+  // フォーカスが外れても、すぐ入力欄に戻す
+  sink.addEventListener('blur', () => setTimeout(refocus, 50));
+  setInterval(() => { if (document.activeElement !== sink) refocus(); }, 500);
+  window.addEventListener('load', refocus);
+
+  // 入力欄以外に文字が届いた場合の保険
+  window.addEventListener('keydown', (e) => {
+    if (document.activeElement !== sink) { refocus(); }
+  });
+
+  // クリックで全画面＋フォーカス
   document.addEventListener('click', () => {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
-    window.focus();
+    refocus();
   });
 </script>
 </body>
