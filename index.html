@@ -19,7 +19,7 @@
 <div class="wrap">
   <!-- autoplay には muted が必須（ブラウザの自動再生ポリシー） -->
   <video id="v" src="video.mp4" poster="poster.jpg"
-         autoplay muted loop playsinline preload="auto"></video>
+         autoplay muted playsinline preload="auto"></video>
   <button id="unmute" hidden>🔊 音を出す</button>
 </div>
 <script>
@@ -28,6 +28,7 @@
   // 念のため明示的にも再生を試みる
   v.play().catch(() => {});
   btn.hidden = false;
+  v.addEventListener('ended', () => { btn.hidden = true; });
   btn.addEventListener('click', () => {
     v.muted = false;
     v.play();
