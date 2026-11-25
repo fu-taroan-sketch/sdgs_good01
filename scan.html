@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QR Video Player</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+  #msg {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #777; font: 28px/1.6 sans-serif; text-align: center; padding: 24px;
+  }
+  /* iframe がフォーカスを奪うとスキャナーの入力が届かなくなるため、操作を無効にする */
+  #frame { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: none; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="msg">QRコードを読み取ってください<br><small>（最初に画面を1回クリックすると全画面になります）</small></div>
+<iframe id="frame" allow="autoplay; fullscreen"></iframe>
+
+<script>
+  const IDLE_MS = 300;          // 入力が止まってから確定するまでの時間（Enterが来なくても動く）
+  const frame = document.getElementById('frame');
+  const msg = document.getElementById('msg');
+  let buf = '', timer = null;
+
+  function commit() {
+    clearTimeout(timer);
+    const text = buf.trim();
+    buf = '';
+    if (!/^https?:\/\//i.test(text)) return;   // URL 以外は無視
+    msg.style.display = 'none';
+    frame.style.display = 'block';
+    frame.src = text;
+    // iframe にフォーカスが移らないように、親ページへ戻す
+    frame.addEventListener('load', () => { frame.blur(); window.focus(); }, { once: true });
+  }
+
+  // 入力欄がなくても、ページ全体でキー入力を受け取る
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); return; }
+    if (e.key === 'Escape') { buf = ''; return; }
+    if (e.key.length === 1) {
+      buf += e.key;
+      clearTimeout(timer);
+      timer = setTimeout(commit, IDLE_MS);
+    }
+  });
+
+  // クリックで全画面
+  document.addEventListener('click', () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+    window.focus();
+  });
+</script>
+</body>
+</html>
